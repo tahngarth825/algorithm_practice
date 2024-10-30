@@ -172,5 +172,5 @@ class ComputeRate
 end
 
 # We'd normally use logging levels based on current env (dev/staging/prod)
-logging = true
+logging = false
 ComputeRate.run(logging)

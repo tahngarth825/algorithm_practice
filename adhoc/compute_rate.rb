@@ -6,7 +6,6 @@ require "fileutils"
 # Purpose: Calculates second lowest silver plan cost from CSV
 # Input: Reads from slcsp/slcsp.csv, a CSV with two header columns: zipcode (filled) and rate (empty)
 # Output: Writes to STDOUT and slcsp/slcsp.csv, overrides the original CSV with two filled columns: zipcode and rate
-# Notes:
 class ComputeRate
   ZIPS_FILE_PATH = "slcsp/zips.csv"
   PLANS_FILE_PATH = "slcsp/plans.csv"
@@ -40,8 +39,6 @@ class ComputeRate
     write_zipcode_to_rate
 
     log "Finished run"
-
-    # TODO: output slcsp sheet regardless of @logging
   end
 
   private

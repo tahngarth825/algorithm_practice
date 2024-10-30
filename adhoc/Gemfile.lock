@@ -2,12 +2,14 @@ GEM
   remote: https://rubygems.org/
   specs:
     csv (3.3.0)
+    fileutils (0.7.2)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
   csv (~> 3.3.0)
+  fileutils (~> 0.7.2)
 
 RUBY VERSION
    ruby 2.6.10p210

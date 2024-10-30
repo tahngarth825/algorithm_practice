@@ -1,26 +1,34 @@
 # frozen_string_literal: true
 
-require 'csv'
+require "csv"
+require "fileutils"
 
 # Purpose: Calculates second lowest silver plan cost from CSV
 # Input: Reads from slcsp/slcsp.csv, a CSV with two header columns: zipcode (filled) and rate (empty)
 # Output: Writes to STDOUT and slcsp/slcsp.csv, overrides the original CSV with two filled columns: zipcode and rate
 # Notes:
 class ComputeRate
+  ZIPS_FILE_PATH = "slcsp/zips.csv"
+  PLANS_FILE_PATH = "slcsp/plans.csv"
+  SLCSP_FILE_PATH = "slcsp/slcsp.csv"
+  INTERMEDIARY_SLCSP_FILE_PATH = "slcsp/slcsp_temp.csv"
+  ORIGINAL_SLCSP_FILE_PATH = "slcsp/slcsp_original.csv"
+  HEADERS = ["zipcode", "rate"].freeze
+
   def self.run(logging = false)
     new.run(logging)
   end
 
-  def initialize(logging)
-    @logging = logging
-
+  def initialize
     # NOTE: These would ideally be cached in a production system instead of stored in memory
     @rate_area_to_rate = Hash.new { |hash, key| hash[key] = [] }
-    @rate_area_to_slcsp = Hash.new { |hash, key| hash[key] = [] }
-    @zipcode_to_rate = Hash.new { |hash, key| hash[key] = [] }
+    @rate_area_to_slcsp = {}
+    @zipcode_to_rate = {}
   end
 
-  def run
+  def run(logging = false)
+    @logging = logging
+
     log "Starting run"
 
     map_rate_area_to_rate
@@ -29,7 +37,7 @@ class ComputeRate
 
     map_zipcode_to_rate
 
-    # TODO: Write to slcsp
+    write_zipcode_to_rate
 
     log "Finished run"
 
@@ -45,7 +53,7 @@ class ComputeRate
   def map_rate_area_to_rate
     log "Running map_@rate_area_to_rate"
 
-    CSV.foreach("slcsp/plans.csv", headers: true, header_converters: :symbol) do |row|
+    CSV.foreach(PLANS_FILE_PATH, headers: true, header_converters: :symbol) do |row|
       metal_level = row[:metal_level]
 
       # We only care about silver plans
@@ -107,21 +115,62 @@ class ComputeRate
   def map_zipcode_to_rate
     log "Running map_zipcode_to_rate"
 
-    CSV.foreach("slcsp/zips.csv", headers: true, header_converters: :symbol) do |row|
+    CSV.foreach(ZIPS_FILE_PATH, headers: true, header_converters: :symbol) do |row|
       zipcode = row[:zipcode]
       rate_area = format_rate_area(row[:state], row[:rate_area])
 
-      rate = rate_area_to_slcsp[]
+      rate = @rate_area_to_slcsp[rate_area]
 
-      zipcode_to_rate[zipcode] =
+      if @zipcode_to_rate[zipcode].nil?
+        @zipcode_to_rate[zipcode] = rate
+      else
+        # Means this zipcode is assigned to two rate areas and is therefore ambiguous
+        @zipcode_to_rate[zipcode] = false
+      end
     end
 
-    log "map_zipcode_to_rate is: #{@map_zipcode_to_rate}"
+    log "map_zipcode_to_rate is: #{@zipcode_to_rate}"
 
     log "Finished running map_zipcode_to_rate"
 
-    @rate_area_to_rate
+    @zipcode_to_rate
+  end
+
+  def write_zipcode_to_rate
+    log "Running write_zipcode_to_rate"
+
+    rows_to_write = []
+
+    CSV.foreach(SLCSP_FILE_PATH, headers: true, header_converters: :symbol) do |row|
+      zipcode = row[:zipcode]
+      rate = @zipcode_to_rate[zipcode] || nil # convert false to nil
+
+      row_to_write = [zipcode, rate]
+
+      # This needs to not use log because it should always output
+      puts row_to_write.join(",")
+
+      rows_to_write << row_to_write
+    end
+
+    unless File.exists?(ORIGINAL_SLCSP_FILE_PATH)
+      FileUtils.cp(SLCSP_FILE_PATH, ORIGINAL_SLCSP_FILE_PATH)
+    end
+
+    headers_set = false
+    CSV.open(INTERMEDIARY_SLCSP_FILE_PATH, "wb", headers: HEADERS, write_headers: true) do |csv|
+      rows_to_write.each do |row|
+        csv << row
+      end
+    end
+
+    FileUtils.cp(INTERMEDIARY_SLCSP_FILE_PATH, SLCSP_FILE_PATH)
+    FileUtils.rm(INTERMEDIARY_SLCSP_FILE_PATH)
+
+    log "Finished running log write_zipcode_to_rate"
   end
 end
 
-ComputeRate.run
+# We'd normally use logging levels based on current env (dev/staging/prod)
+logging = true
+ComputeRate.run(logging)
